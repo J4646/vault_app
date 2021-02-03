@@ -1,0 +1,154 @@
+<html>
+<head>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js" integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW" crossorigin="anonymous"></script>
+
+</head>
+<body class="text-light bg-dark">
+<div class="m-5">
+  <div >
+    <div class="display-4"><span class="badge bg-danger">AI Secure Vault</span> </div>
+    <p class="small">Welcome to the AI secure vault. Use your secret code book to insert appropriate images for each class to access the secret data.</p>
+  </div>
+  <div id="file-selector-dragdrop" class='bg-dark.bg-gradient rounded d-inline-flex p-2 border border-1 border-white' width: 500px; ></div>
+  <div id="console" class='bg-dark rounded mt-3 p-2 border border-1 border-white h-25 overflow-auto font-monospace small text-success' style="width: 700px;" >
+  Console output...<BR>
+  </div>
+  
+</div>
+
+<div id='status' class="alert alert-danger alert-dismissible fade show d-none m-5" role="alert">
+</div>
+
+<script>
+const file_selector = document.getElementById('file-selector-dragdrop');
+const con = document.getElementById('console');
+const drop_here_img="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAAAAABXZoBIAAAACXBIWXMAABJ0AAASdAHeZh94AAAAtUlEQVQoz5WSUQrCMBBEX2IrFS2CH4IVFA/g/U8leADp8yOKbVpbXchPZnd2dhiYq+D4f5yZi+qpFQXNSBQRRKy6aPzsLQEeGW2haXKMlupYU8NlB+4nxMk/tf3aHsHA9CKvb6lCYQ9UFSrxLDb2wJAuvSWbzMGQTDSKK5pkT7Y8pLcY01ay7lCGofLwu0VTDk1k5JUFZHUXPOS0wU0nKhm4EHU/SELRvSm2gzuWIlXKEf6chSfo229T8HqdtAAAAABJRU5ErkJggg==";
+const status_div= document.getElementById('status');
+
+function err_msg(msg){
+    console.log('ERR:'+msg)
+    status_div.innerHTML=msg;
+    status_div.classList.remove('d-none');
+    setTimeout(() => status_div.classList.add('d-none') , 2000)
+}
+
+function console_out(msg){
+   con.innerHTML=con.innerHTML+msg+'<BR>';
+   con.scrollTo(0,con.scrollHeight);
+}
+
+function is_grayscale(img){
+    //check grayscale
+    canvas=document.createElement('canvas')
+    canvas.height=28;
+    canvas.width=28;
+    ctx = canvas.getContext('2d');
+    ctx.drawImage(img,0,0);
+    imageData = ctx.getImageData(0, 0, 28,28);
+    pixels = imageData.data;
+    ret=true;
+    for(i=0;i<pixels.length;i=i+4){
+        if(pixels[i]!=pixels[i+1] || pixels[i]!=pixels[i+2]){
+            ret=false;
+            break;
+        }
+    }
+    canvas.remove();
+    return ret;
+}
+
+function picture_onload(){
+
+    
+    if (this.naturalWidth==28 && this.naturalHeight==28){
+        if (is_grayscale(this)){    
+            this.classList.remove('border-danger');
+            this.classList.add('border-success');
+            return;
+        }} 
+    this.classList.remove('border-success');
+    this.classList.add('border-danger');
+    err_msg('Only 28x28 grayscale images supported')
+
+}
+
+function drop_img(event)  {
+    event.stopPropagation();
+    event.preventDefault();
+    const files = event.dataTransfer.files;
+    const file = files[0];
+    image_out_loc=event.target
+
+    if (!file.type) {
+        console.log('Error: The File.type property does not appear to be supported on this browser.');
+        return;
+    }
+    if (!file.type.match('image.*')) {
+        console.log('Error: The selected file does not appear to be an image.');
+        return;
+    }
+    const reader = new FileReader();
+    reader.addEventListener('load', event => {
+        //console.log(event.target);
+        image_out_loc.src = event.target.result;
+
+        });
+    reader.readAsDataURL(file);
+    //console.log(reader)
+}
+
+function submit(){
+    console_out('prepare data');
+    post_data={}
+    for(i=0;i<10;i++){
+      post_data['class_'+i.toString()]=img_boxes[i].src;
+    }
+    //url='https://httpbin.org/post';
+    url='/vault';
+    console_out('POST request to '+url);
+    fetch(url, {
+        method: 'post',
+        headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(post_data)
+    })
+    
+    .then(res => {console_out('Result:'+ res.status); console.log(res); return res.json();})
+    .then(jsondata => {console.log(jsondata);console_out(JSON.stringify(jsondata));})
+    .catch((error) => {console_out('Error:'+error)})
+}
+img_boxes=[10];
+
+//create image drop boxes
+for(i=0;i<10;i++){
+  var node = document.createElement("IMG");
+  node.setAttribute("style", "height: 50px; width: 50px; object-fit: contain;")
+  node.setAttribute("class", "border p-1 m-1");//"file-selector-dragdrop")
+  node.src=drop_here_img;
+  node.addEventListener('load',picture_onload)
+  node.addEventListener('dragover', event => {
+    event.stopPropagation();
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  });
+  node.addEventListener('drop',drop_img);
+  file_selector.appendChild(node); 
+  img_boxes[i]=node;
+}
+submit_btn = document.createElement('button');
+submit_btn.innerHTML='Submit codes';
+submit_btn.setAttribute('class',"btn btn-danger  align-middle")
+submit_btn.addEventListener('click',submit)
+file_selector.appendChild(submit_btn);  
+
+//adjust console size
+w=file_selector.offsetWidth.toString()+'px';
+con.setAttribute('style','width:'+w);     
+  
+</script>
+</body>
+</html>
